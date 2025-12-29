@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 面板设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 400px;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: white;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 0;
+            padding: 20px;
+            box-shadow: none;
+        }
+        
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #52c41a;
+        }
+        
+        .status-indicator.disabled {
+            background: #999;
+        }
+        
+        
+        .toggle-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 6px;
+            border: 1px solid #e8e8e8;
+        }
+        
+        .toggle-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .toggle-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #606266;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #dcdfe6;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #333;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        
+        .config-section {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #606266;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #333;
+        }
+        
+        textarea:disabled {
+            background: #f5f7fa;
+            cursor: not-allowed;
+        }
+        
+        .hint {
+            font-size: 12px;
+            color: #909399;
+            margin-top: 5px;
+            line-height: 1.5;
+        }
+        
+        .example {
+            background: #fafafa;
+            border-left: 2px solid #333;
+            padding: 8px 10px;
+            margin-top: 10px;
+            border-radius: 0;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #555;
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #fafafa;
+            color: #666;
+            border: 1px solid #e8e8e8;
+        }
+        
+        .btn-secondary:hover {
+            background: #f0f0f0;
+        }
+        
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            text-align: center;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: #f0f9ff;
+            color: #67c23a;
+            border: 1px solid #c6e2ff;
+        }
+        
+        .status-message.error {
+            background: #fef0f0;
+            color: #f56c6c;
+            border: 1px solid #fde2e2;
+        }
+        
+        .footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ebeef5;
+            text-align: center;
+            font-size: 11px;
+            color: #909399;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            <span class="status-indicator" id="statusIndicator"></span>
+            API 面板
+        </h1>
+        
+        <div class="toggle-section">
+            <div class="toggle-container">
+                <span class="toggle-label">启用</span>
+                <label class="switch">
+                    <input type="checkbox" id="enableMonitor" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="config-section">
+            <label for="urlFilter">
+                URL 过滤规则
+            </label>
+            <textarea 
+                id="urlFilter" 
+                placeholder="留空则监控所有请求&#10;支持多个 URL，用逗号分隔&#10;支持通配符 *"
+            ></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button class="btn-secondary" id="resetBtn">重置</button>
+            <button class="btn-primary" id="saveBtn">保存配置</button>
+        </div>
+        
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
