@@ -943,8 +943,133 @@
             }, 100);
         },
                 
-        // 应用映射到表单(内部方法)
-        _applyMappingsToForm(template, formFields) {
+        // 异步填充DatePicker - 使用点击方式
+        async _fillDatePickerAsync(input, formattedValue, antDatePicker) {
+            console.log('📅 DatePicker填充, 值:', formattedValue);
+            return this._fillDatePickerByClick(input, formattedValue, antDatePicker);
+        },
+        
+        // 通过点击方式填充DatePicker(备用方案)
+        _fillDatePickerByClick(input, formattedValue, antDatePicker) {
+            return new Promise((resolve) => {
+                console.log('🔄 尝试点击方式填充DatePicker:', formattedValue);
+                
+                // 先关闭可能存在的日历弹窗
+                const existingPicker = document.querySelector('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)');
+                if (existingPicker) {
+                    console.log('🗑️ 检测到已打开的日历,先关闭');
+                    document.body.click();
+                    // 等待关闭动画完成
+                    setTimeout(() => this._openAndSelectDate(input, formattedValue, antDatePicker, resolve), 200);
+                } else {
+                    this._openAndSelectDate(input, formattedValue, antDatePicker, resolve);
+                }
+            });
+        },
+        
+        // 打开并选择日期
+        _openAndSelectDate(input, formattedValue, antDatePicker, resolve) {
+            console.log('🔓 点击input打开日历');
+            console.log('📍 input元素:', input);
+            console.log('📍 antDatePicker元素:', antDatePicker);
+            
+            // 先关闭可能存在的其他弹窗
+            const allDropdowns = document.querySelectorAll('.ant-picker-dropdown');
+            console.log('📋 检测到的所有日历弹窗数量:', allDropdowns.length);
+            allDropdowns.forEach((dropdown, idx) => {
+                console.log(`  - 弹窗${idx}: hidden=${dropdown.classList.contains('ant-picker-dropdown-hidden')}`);
+            });
+            
+            // 触发多种事件确保能打开
+            console.log('🖱️ 触发点击事件...');
+            
+            // 方法1: 直接点击input
+            input.click();
+            
+            // 方法2: 触发mousedown事件
+            const mousedownEvent = new MouseEvent('mousedown', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            input.dispatchEvent(mousedownEvent);
+            
+            // 方法3: 触发focus
+            input.focus();
+            
+            // 方法4: 点击DatePicker容器
+            antDatePicker.click();
+            
+            // 等待日历打开
+            setTimeout(() => {
+                // 重新查找日历
+                const picker = document.querySelector('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)');
+                
+                console.log('🔍 500ms后检查日历状态:');
+                console.log('  - 找到的picker:', picker);
+                
+                const allDropdowns2 = document.querySelectorAll('.ant-picker-dropdown');
+                console.log('  - 所有弹窗数量:', allDropdowns2.length);
+                allDropdowns2.forEach((dropdown, idx) => {
+                    console.log(`    弹窗${idx}: hidden=${dropdown.classList.contains('ant-picker-dropdown-hidden')}, display=${getComputedStyle(dropdown).display}`);
+                });
+                
+                if (picker) {
+                    console.log('📅 日历打开成功!');
+                    
+                    // 解析日期
+                    const targetDate = new Date(formattedValue);
+                    const targetYear = targetDate.getFullYear();
+                    const targetMonth = targetDate.getMonth(); // 0-11
+                    const targetDay = targetDate.getDate();
+                    
+                    console.log(`📅 目标日期: ${targetYear}-${targetMonth + 1}-${targetDay}`);
+                    
+                    // 查找并点击对应的日期单元格
+                    const cells = picker.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)');
+                    console.log('📋 找到的日期单元格数量:', cells.length);
+                    let clicked = false;
+                    
+                    cells.forEach(cell => {
+                        const cellTitle = cell.getAttribute('title'); // 例如: "2025-12-21"
+                        const cellText = cell.querySelector('.ant-picker-cell-inner')?.textContent.trim();
+                        
+                        // 匹配title或者天数
+                        if ((cellTitle && cellTitle === formattedValue) || 
+                            (cellText === String(targetDay) && !clicked)) {
+                            cell.click();
+                            clicked = true;
+                            console.log(`✅ 点击日期单元格: ${cellTitle || cellText}`);
+                        }
+                    });
+                    
+                    if (!clicked) {
+                        console.warn(`⚠️ 未找到日期 ${formattedValue} 的单元格`);
+                        console.log('📋 可用单元格列表:');
+                        cells.forEach((cell, idx) => {
+                            const cellTitle = cell.getAttribute('title');
+                            const cellText = cell.querySelector('.ant-picker-cell-inner')?.textContent.trim();
+                            console.log(`  ${idx}: title="${cellTitle}", text="${cellText}"`);
+                        });
+                        // 关闭日历
+                        document.body.click();
+                        resolve(false);
+                    } else {
+                        resolve(true);
+                    }
+                } else {
+                    console.error('❌ 日历未打开');
+                    console.log('💡 可能原因:');
+                    console.log('  1. DatePicker组件被disabled');
+                    console.log('  2. DatePicker外层有遮罩层阻止点击');
+                    console.log('  3. React事件监听器未正确绑定');
+                    resolve(false);
+                }
+            }, 500); // 等待500ms让日历弹出
+        },
+        
+        // 应用映射到表单(内部方法) - 改为async串行处理
+        async _applyMappingsToForm(template, formFields) {
             // 根据模板映射填充表单
             let successCount = 0;
             let failCount = 0;
@@ -955,7 +1080,9 @@
                     
             console.log('🚀 开始匹配并填充...');
                             
-            template.mappings.forEach((mapping, idx) => {
+            // 改为串行处理,避免多个DatePicker同时打开日历冲突
+            for (let idx = 0; idx < template.mappings.length; idx++) {
+                const mapping = template.mappings[idx];
                 console.log(`\n--- 处理第 ${idx + 1}/${totalMappings} 个映射 ---`);
                 console.log('🔍 查找表单字段:', mapping.formLabel);
                         
@@ -966,7 +1093,7 @@
                     console.warn(`⚠️ 未找到表单字段: "${mapping.formLabel}" (可能是动态字段,等待二次回填)`);
                     // 加入pending列表,等待二次回填
                     pendingMappings.push(mapping);
-                    return;
+                    continue;
                 }
                         
                 console.log('✅ 找到字段:', field.label, '类型:', field.type);
@@ -1018,60 +1145,25 @@
                         }
                         
                         if (antDatePicker) {
-                            // Ant Design DatePicker 特殊处理 - 必须通过点击选择日期
+                            // Ant Design DatePicker 特殊处理 - 使用await等待完成
                             console.log('📅 DatePicker 填充, 值:', formattedValue);
                             
                             const input = antDatePicker.querySelector('input');
                             if (input) {
-                                // 点击 input 打开日历
-                                input.click();
-                                input.focus();
-                                
-                                // 等待日历打开
-                                setTimeout(() => {
-                                    const picker = document.querySelector('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)');
-                                    
-                                    if (picker) {
-                                        console.log('📅 日历打开成功!');
-                                        
-                                        // 解析日期
-                                        const targetDate = new Date(formattedValue);
-                                        const targetYear = targetDate.getFullYear();
-                                        const targetMonth = targetDate.getMonth(); // 0-11
-                                        const targetDay = targetDate.getDate();
-                                        
-                                        console.log(`📅 目标日期: ${targetYear}-${targetMonth + 1}-${targetDay}`);
-                                        
-                                        // 查找并点击对应的日期单元格
-                                        const cells = picker.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)');
-                                        let clicked = false;
-                                        
-                                        cells.forEach(cell => {
-                                            const cellTitle = cell.getAttribute('title'); // 例如: "2025-12-21"
-                                            const cellText = cell.querySelector('.ant-picker-cell-inner')?.textContent.trim();
-                                            
-                                            // 匹配title或者天数
-                                            if ((cellTitle && cellTitle === formattedValue) || 
-                                                (cellText === String(targetDay) && !clicked)) {
-                                                cell.click();
-                                                clicked = true;
-                                                console.log(`✅ 点击日期单元格: ${cellTitle || cellText}`);
-                                            }
-                                        });
-                                        
-                                        if (!clicked) {
-                                            console.warn(`⚠️ 未找到日期 ${formattedValue} 的单元格`);
-                                            // 关闭日历
-                                            document.body.click();
-                                            failCount++;
-                                        } else {
-                                            successCount++;
-                                        }
+                                try {
+                                    // 等待异步填充完成
+                                    const success = await this._fillDatePickerAsync(input, formattedValue, antDatePicker);
+                                    if (success) {
+                                        successCount++;
+                                        console.log('✅ DatePicker填充成功');
                                     } else {
-                                        console.error('❌ 日历未打开');
                                         failCount++;
+                                        console.error('❌ DatePicker填充失败');
                                     }
-                                }, 300); // 等待300ms让日历弹出
+                                } catch (err) {
+                                    failCount++;
+                                    console.error('❌ DatePicker填充异常:', err);
+                                }
                             } else {
                                 console.error('❌ DatePicker中未找到input元素');
                                 failCount++;
@@ -1261,7 +1353,7 @@
                     console.error('填充失败:', error);
                     failCount++;
                 }
-            });
+            }
             
             // 二次回填: 处理动态字段
             if (pendingMappings.length > 0) {
